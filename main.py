@@ -160,4 +160,4 @@ if __name__ == '__main__':
     print("✅ Bot starting in POLLING mode...")
     from threading import Thread
     Thread(target=lambda: bot.infinity_polling(skip_pending=True, timeout=60)).start()
-    app.run(host='0.0.0.0', port=PORT)
+    app.run(host='0.0.0.0', port=PORT) 
