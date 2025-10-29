@@ -16,6 +16,9 @@ PORT = int(os.getenv("PORT", 8000))
 if not BOT_TOKEN or not GEMINI_API_KEY:
     raise RuntimeError("❌ Missing BOT_TOKEN or GEMINI_API_KEY environment variables!")
 
+# 🧹 Force delete webhook before polling
+requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook")
+
 bot = telebot.TeleBot(BOT_TOKEN)
 AUTH_FILE = "auth.json"
 
@@ -52,7 +55,6 @@ def is_allowed(user_id, chat_id):
 # ====== GEMINI REQUEST ======
 def ask_gemini(prompt, image_bytes=None):
     try:
-        # ✅ Correct working API endpoint
         url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 
         contents = [{"parts": [{"text": prompt}]}]
@@ -74,7 +76,6 @@ def ask_gemini(prompt, image_bytes=None):
             .get("text", "⚠️ No response from Gemini.")
         )
 
-        # clean response
         return text.strip()
 
     except requests.exceptions.HTTPError as e:
