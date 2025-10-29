@@ -57,7 +57,7 @@ def ask_gemini(prompt, image_bytes=None):
                 "inline_data": {"mime_type": "image/jpeg", "data": b64}
             })
         res = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}",
             json={"contents": contents},
             timeout=60
         )
