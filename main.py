@@ -8,7 +8,7 @@ from flask import Flask
 
 # ====== CONFIG ======
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_KEY = ("AIzaSyBKwFRGkbhJIzk46G5hpqj_w22MLSt61yE")
 OWNER_ID = int(os.getenv("OWNER_ID", "7447651332"))
 PORT = int(os.getenv("PORT", 8000))
 # ====================
