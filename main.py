@@ -1,4 +1,3 @@
-
 import os
 import time
 import json
@@ -12,6 +11,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 OWNER_ID = int(os.getenv("OWNER_ID", "7447651332"))
 PORT = int(os.getenv("PORT", 8000))
+APP_NAME = os.getenv("APP_NAME", "your-app-name")  # koyeb app name
 # ====================
 
 if not BOT_TOKEN or not GEMINI_API_KEY:
@@ -20,7 +20,6 @@ if not BOT_TOKEN or not GEMINI_API_KEY:
 bot = telebot.TeleBot(BOT_TOKEN)
 AUTH_FILE = "auth.json"
 
-# ====== AUTH SETUP ======
 if not os.path.exists(AUTH_FILE):
     default = {
         "owners": [OWNER_ID],
@@ -50,7 +49,6 @@ def is_allowed(user_id, chat_id):
         chat_id in auth["allowed_groups"]
     )
 
-# ====== GEMINI FUNCTION ======
 def ask_gemini(prompt, image_bytes=None):
     try:
         contents = [{"parts": [{"text": prompt}]}]
@@ -59,7 +57,6 @@ def ask_gemini(prompt, image_bytes=None):
             contents[0]["parts"].append({
                 "inline_data": {"mime_type": "image/jpeg", "data": b64}
             })
-
         res = requests.post(
             f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}",
             json={"contents": contents},
@@ -67,48 +64,30 @@ def ask_gemini(prompt, image_bytes=None):
         )
         res.raise_for_status()
         data = res.json()
-        return data["candidates"][0]["content"]["parts"][0]["text"]
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        return text
     except Exception as e:
         return f"❌ Gemini Error: {e}"
 
-# ====== BOT HANDLERS ======
+# ====== Flask Setup ======
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "✅ AI Bot is running!", 200
+
+@app.route(f'/{BOT_TOKEN}', methods=['POST'])
+def webhook():
+    update = telebot.types.Update.de_json(request.stream.read().decode('utf-8'))
+    bot.process_new_updates([update])
+    return "ok", 200
+
+# ===== Telegram Handlers =====
 @bot.message_handler(commands=['start'])
 def start(msg):
     if not is_allowed(msg.from_user.id, msg.chat.id):
         return bot.reply_to(msg, "🚫 Not authorized.")
     bot.reply_to(msg, "🤖 Hello! Send a question or image to solve.")
-
-@bot.message_handler(commands=['addauth'])
-def add_auth(msg):
-    if not is_owner(msg.from_user.id):
-        return bot.reply_to(msg, "🚫 Only owner can use this.")
-    try:
-        user_id = int(msg.text.split()[1])
-        data = load_auth()
-        if user_id not in data["allowed_users"]:
-            data["allowed_users"].append(user_id)
-            save_auth(data)
-            bot.reply_to(msg, f"✅ Added user {user_id} to authorized list.")
-        else:
-            bot.reply_to(msg, "⚠️ User already authorized.")
-    except:
-        bot.reply_to(msg, "⚠️ Usage: /addauth <user_id>")
-
-@bot.message_handler(commands=['removeauth'])
-def remove_auth(msg):
-    if not is_owner(msg.from_user.id):
-        return bot.reply_to(msg, "🚫 Only owner can use this.")
-    try:
-        user_id = int(msg.text.split()[1])
-        data = load_auth()
-        if user_id in data["allowed_users"]:
-            data["allowed_users"].remove(user_id)
-            save_auth(data)
-            bot.reply_to(msg, f"❌ Removed user {user_id}.")
-        else:
-            bot.reply_to(msg, "⚠️ User not found in list.")
-    except:
-        bot.reply_to(msg, "⚠️ Usage: /removeauth <user_id>")
 
 @bot.message_handler(content_types=['text'])
 def text_query(msg):
@@ -128,22 +107,14 @@ def image_query(msg):
     ans = ask_gemini("Solve this NEET/JEE question step-by-step:", image_bytes=img)
     bot.reply_to(msg, ans[:4000])
 
-# ====== FLASK APP + WEBHOOK ======
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "✅ AI Bot is running!", 200
-
-@app.route(f'/{BOT_TOKEN}', methods=['POST'])
-def webhook():
-    update = telebot.types.Update.de_json(request.data.decode('utf-8'))
-    bot.process_new_updates([update])
-    return "OK", 200
-
+# ===== Run Bot (Webhook) =====
 if __name__ == '__main__':
-    bot.remove_webhook()
-    webhook_url = f"https://{os.getenv('KOYEB_APP_NAME')}.koyeb.app/{BOT_TOKEN}"
-    bot.set_webhook(url=webhook_url)
-    print(f"✅ Webhook set: {webhook_url}")
+    # Remove old webhook first
+    requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook")
+
+    # Set new webhook to Koyeb
+    WEBHOOK_URL = f"https://{APP_NAME}.koyeb.app/{BOT_TOKEN}"
+    set_hook = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}")
+    print("Webhook set response:", set_hook.text)
+
     app.run(host='0.0.0.0', port=PORT)
