@@ -1,11 +1,5 @@
-FROM python:3.11-slim
-
+FROM python:3.10-slim
 WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
 COPY . .
-
-# Delete webhook before start to avoid 409 error
+RUN pip install --no-cache-dir -r requirements.txt
 CMD ["python3", "main.py"]
