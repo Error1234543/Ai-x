@@ -1,4 +1,3 @@
-
 import os
 import time
 import json
@@ -53,7 +52,8 @@ def is_allowed(user_id, chat_id):
 # ====== GEMINI REQUEST ======
 def ask_gemini(prompt, image_bytes=None):
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        # ✅ Correct working API endpoint
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 
         contents = [{"parts": [{"text": prompt}]}]
 
@@ -67,12 +67,19 @@ def ask_gemini(prompt, image_bytes=None):
         res.raise_for_status()
 
         data = res.json()
-        text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "⚠️ No response from Gemini.")
-        return text
+        text = (
+            data.get("candidates", [{}])[0]
+            .get("content", {})
+            .get("parts", [{}])[0]
+            .get("text", "⚠️ No response from Gemini.")
+        )
+
+        # clean response
+        return text.strip()
 
     except requests.exceptions.HTTPError as e:
         if "404" in str(e):
-            return "❌ Gemini API model not found — use correct API key & model."
+            return "❌ Gemini API model not found — please check your API key or endpoint."
         return f"❌ Gemini HTTP Error: {e}"
     except Exception as e:
         return f"❌ Gemini Error: {e}"
@@ -82,7 +89,12 @@ def ask_gemini(prompt, image_bytes=None):
 def start(msg):
     if not is_allowed(msg.from_user.id, msg.chat.id):
         return bot.reply_to(msg, "🚫 Not authorized.")
-    bot.reply_to(msg, "🤖 Hello! Send me any NEET/JEE question or image to solve using Gemini AI.")
+    bot.reply_to(
+        msg,
+        "🤖 **Hello!** I'm your NEET/JEE AI Doubt Solver.\n\n"
+        "📸 Send an image of your question or\n"
+        "💬 Type your question — I'll explain step-by-step using Gemini AI."
+    )
 
 @bot.message_handler(commands=['add'])
 def add_user(msg):
