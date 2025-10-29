@@ -4,6 +4,8 @@ import json
 import base64
 import requests
 import telebot
+from flask import Flask
+from threading import Thread
 
 # ====== CONFIG (use environment variables on Koyeb) ======
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -58,7 +60,6 @@ def ask_gemini(prompt, image_bytes=None, timeout=60):
         contents = [{"parts": [{"text": prompt}]}]
         if image_bytes:
             b64 = base64.b64encode(image_bytes).decode("utf-8")
-            # Attach inline image data
             contents[0]["parts"].append({
                 "inline_data": {"mime_type": "image/jpeg", "data": b64}
             })
@@ -67,13 +68,11 @@ def ask_gemini(prompt, image_bytes=None, timeout=60):
         res = requests.post(url, json=payload, timeout=timeout)
         res.raise_for_status()
         data = res.json()
-        # Extract text from response (best-effort)
         candidates = data.get("candidates") or []
         if candidates:
             parts = candidates[0].get("content", {}).get("parts") or []
             if parts:
                 return parts[0].get("text", "No text in response.")
-        # fallback
         return json.dumps(data)[:2000]
     except Exception as e:
         return f"Error contacting Gemini API: {e}"
@@ -162,7 +161,6 @@ def handle_text(msg):
         return bot.reply_to(msg, "🚫 Not authorized.")
     bot.send_chat_action(msg.chat.id, 'typing')
     answer = ask_gemini(msg.text)
-    # Telegram message limit guard
     if len(answer) > 4000:
         answer = answer[:3990] + "\n... (truncated)"
     bot.reply_to(msg, answer)
@@ -179,18 +177,26 @@ def handle_photo(msg):
         answer = answer[:3990] + "\n... (truncated)"
     bot.reply_to(msg, answer)
 
+# --- Simple HTTP server for Koyeb health check ---
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "✅ Bot running (health check OK)"
+
+def run_flask():
+    app.run(host="0.0.0.0", port=8000)
+
 if __name__ == '__main__':
-    # try removing webhook first to avoid 409 conflict
     try:
         bot.remove_webhook()
-    except Exception:
-        pass
-    # Also call Telegram deleteWebhook endpoint as extra safety
-    try:
         requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook", timeout=5)
         time.sleep(1)
     except Exception:
         pass
 
     print("✅ Bot starting (polling mode)...")
+
+    # Run flask + polling together
+    Thread(target=run_flask).start()
     bot.infinity_polling(skip_pending=True)
